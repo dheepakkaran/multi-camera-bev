@@ -17,9 +17,7 @@ Six surround-view cameras go in; a top-down Bird's-Eye-View map with 3D
 boxes comes out — **no LiDAR, no HD maps**, the same sensor philosophy as
 Tesla FSD.
 
-Pick a frame and hit **Run**. The request goes to an **NVIDIA Triton**
-server running inside this Space (via PyTriton, so no Docker is needed),
-which runs the ONNX pipeline and returns the detection heads.
+Pick a frame and hit **Run**.
 
 ## What you are looking at
 
@@ -29,9 +27,22 @@ which runs the ONNX pipeline and returns the detection heads.
 
 ## Honest notes
 
-This Space runs on a **free CPU tier**, so inference is ONNX Runtime at
-roughly one to two seconds per frame. The TensorRT numbers below were
-measured on a Tesla T4:
+**This Space runs ONNX Runtime on a free CPU tier** — roughly one to two
+seconds per frame.
+
+The app tries to serve the model through **NVIDIA Triton** (PyTriton, run
+in-process so no Docker is needed) and falls back to calling ONNX Runtime
+directly when it cannot start. On this Space it always falls back:
+PyTriton's Python backend needs a Python 3.8 interpreter that the Space
+image does not provide. The UI tells you which path served your request.
+
+Triton *does* run in the GPU setup — two model instances over TensorRT
+INT8 engines, with dynamic batching — and the code for it is in the repo.
+There, client-side latency was 48.6 ms against 8.5 ms of actual compute:
+the remaining 40 ms is HTTP serialisation of ~10 MB of tensors per
+request, which is the thing gRPC and CUDA shared memory exist to fix.
+
+The TensorRT numbers below were measured on a Tesla T4:
 
 | Backend | Latency | FPS | Speedup |
 |---|---:|---:|---:|
