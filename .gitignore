@@ -1,0 +1,30 @@
+# --- virtual env ---
+bev_env/
+
+# --- python ---
+__pycache__/
+*.pyc
+
+# --- dataset (4 GB - nuscenes.org la separate-a download pannu) ---
+data/nuscenes-mini/
+data/*.tgz
+
+# --- run outputs (periya files) ---
+runs/
+mlruns/
+
+# --- model weights / engines / onnx ---
+# .pth 21 MB, .plan 50 MB varai - git-la vendaam.
+# Release-la illa Kaggle-la irundhu edukalaam.
+*.pth
+*.plan
+export/onnx/
+export/calib_bundle.npz
+export/engines/
+
+# --- mac ---
+.DS_Store
+
+# --- docs/assets MATTUM commit aaganum (portfolio padangal) ---
+!docs/assets/
+!docs/assets/**

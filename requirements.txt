@@ -1,0 +1,22 @@
+# ============================================================
+# requirements.txt
+# ============================================================
+# MUKIYAM - numpy 1.x la pin panniruku, 2.x illa.
+# Yaen? nuScenes-devkit matplotlib<3.6 kekkuthu, antha matplotlib
+# numpy 1.x-la compile aagirukku. numpy 2 install pannina
+# "numpy.core.multiarray failed to import" nu crash aagum.
+# opencv-um 4.8 la pin - pudhu opencv numpy>=2 kekkum.
+# ============================================================
+
+matplotlib==3.5.3
+numpy==1.26.4
+nuscenes-devkit==1.1.11
+onnx==1.22.0
+onnxruntime==1.23.2
+opencv-python==4.8.1.78
+pillow==12.3.0
+pyquaternion==0.9.9
+timm==1.0.28
+torch==2.13.0
+torchvision==0.28.0
+tqdm==4.70.0

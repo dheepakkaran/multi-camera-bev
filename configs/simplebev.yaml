@@ -1,0 +1,25 @@
+# SimpleBEV training config
+# Ellaa hyperparameter-um inga. Code-la hardcode pannaama ithula
+# vachaa, experiment maathurathu easy (file edit pannina pothum).
+
+data_root: data/nuscenes-mini
+
+train:
+  epochs: 50
+  batch_size: 4          # Kaggle T4 (16GB) ku sari. Mac CPU-la 1 use pannu.
+  num_workers: 2
+  lr: 0.001              # cosine schedule-la 0 varai kurayum
+  weight_decay: 0.01     # overfitting thadukka (mini dataset chinnathu)
+  grad_clip: 5.0         # gradient explode aagaama thadukka
+  amp: true              # mixed precision - GPU-la 2x fast (CPU-la off aagum)
+  log_every: 10          # evlo step-ku oru thadava print
+
+loss_weights:
+  heatmap: 1.0
+  offset: 1.0
+  height: 1.0
+  size: 1.0
+  rot: 1.0
+  vel: 0.5
+
+output_dir: runs/simplebev
