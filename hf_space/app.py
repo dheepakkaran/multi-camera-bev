@@ -60,6 +60,58 @@ MODEL.load_state_dict(
 print("model loaded on CPU")
 
 
+
+# Ego frame-la x = munnadi, y = idathu. Antha angle-ai vachi
+# "intha object edhu camera-la theriyum" nu sollalaam.
+# Ithu thaan "yaen ithai detect panniten" nu vilakkurathukku thevai.
+CAMERA_SECTORS = [
+    (-35, 35, "FRONT"),
+    (35, 90, "FRONT LEFT"),
+    (90, 145, "BACK LEFT"),
+    (145, 181, "BACK"),
+    (-181, -145, "BACK"),
+    (-145, -90, "BACK RIGHT"),
+    (-90, -35, "FRONT RIGHT"),
+]
+
+
+def which_camera(x: float, y: float) -> str:
+    """Object-oda angle-la irundhu edhu camera nu kandupidikkurathu."""
+    ang = np.degrees(np.arctan2(y, x))          # 0 = munnadi, +90 = idathu
+    for lo, hi, name in CAMERA_SECTORS:
+        if lo <= ang < hi:
+            return name
+    return "FRONT"
+
+
+def describe(boxes: list, thresh: float) -> str:
+    """
+    Detections-ai saadha vaarthaila solradhu.
+
+    "3 pedestrians, 20 m ahead-left, seen by the FRONT LEFT camera"
+    nu sonna, technical theriyaadhavanga-kum puriyum - and model
+    yaen antha mudivukku vandhuchu nu-um theriyum.
+    """
+    shown = [b for b in boxes if b["score"] >= thresh]
+    if not shown:
+        return "Nothing confident enough in this one."
+
+    groups = {}
+    for b in shown:
+        dist = float(np.hypot(b["x"], b["y"]))
+        key = (CLASSES[b["cls"]], which_camera(b["x"], b["y"]))
+        groups.setdefault(key, []).append(dist)
+
+    lines = []
+    for (cls, cam), dists in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        n = len(dists)
+        near, far = min(dists), max(dists)
+        span = f"{near:.0f} m" if n == 1 else f"{near:.0f}-{far:.0f} m"
+        lines.append(f"- **{n} {cls}{'s' if n > 1 else ''}** at {span}, "
+                     f"picked up by the **{cam}** camera")
+    return "\n".join(lines)
+
+
 def normalize(i: int) -> np.ndarray:
     return ((IMAGES_U8[i].astype(np.float32) / 255.0) - _mean) / _std
 
@@ -188,40 +240,74 @@ def _boxes(preds: dict) -> list:
         {k2: torch.from_numpy(v) for k2, v in preds.items()})[0]
 
 
-def play(score_thresh: float, progress=gr.Progress()):
-    """Ellaa moment-um odi, video madhiri GIF."""
-    progress(0.05, desc="Waking up the GPU...")
+def play(score_thresh: float):
+    """
+    LIVE walkthrough - GIF illa, generator.
+
+    Gradio-la `yield` panna udane screen update aagum. So paakkuravanga
+    ovvoru step-aiyum nadakkura podhu paapaanga, kadaisiyil oru padam
+    illa.
+
+    Rendu pagudhi:
+      1. Mudhal moment - 4 step-um niththaana vilakkam
+      2. Meedhi moments - vegama odi, ovvondrukum "enna kandupidichen"
+    """
+    yield None, "### Waking up the GPU...\n\nHF gives this Space an A100 only while it is working."
+
     all_preds, all_ms = run_on_gpu(list(range(N_MOMENTS)))
-
-    from PIL import Image
-    frames = []
-    # Ovvoru moment-kum 4 stage -> stage-gal light aagi nagarum
-    for i, (preds, ms) in enumerate(zip(all_preds, all_ms)):
-        b = _boxes(preds)
-        for stage in range(len(STAGES)):
-            progress((i * len(STAGES) + stage) / (N_MOMENTS * len(STAGES)),
-                     desc=f"Drawing moment {i+1} of {N_MOMENTS}...")
-            frames.append(Image.fromarray(
-                make_figure(i, b, ms, stage, score_thresh)))
-
-    out = "/tmp/bev_play.gif"
-    frames[0].save(out, save_all=True, append_images=frames[1:],
-                   duration=380, loop=0, optimize=True)
-
+    boxes_all = [_boxes(p) for p in all_preds]
     avg = float(np.mean(all_ms))
-    return out, f"""
-### What just happened
 
-The model ran on **{N_MOMENTS} moments** from a real drive in Boston.
-Each one took about **{avg:.0f} ms** on the GPU — that is roughly
-**{1000/avg:.0f} frames per second**, faster than a car's cameras produce them.
+    # ---------- Pagudhi 1: mudhal moment, step by step ----------
+    step_text = [
+        "The six cameras all fire at the same instant. Each one only sees a "
+        "slice of the world, and none of them can tell how far away anything is.",
 
-For every moment it did all four steps in the diagram: read six photos,
-guessed how far away everything was, drew a top-down map, and put boxes
-around what it found.
+        "Every photo goes through the same small neural network. It does not "
+        "look for cars yet - it just turns pixels into shapes, edges and "
+        "textures the later stages can use.",
 
-*This is plain PyTorch. Squeezed through TensorRT on a Tesla T4 the same
-model runs in **8.5 ms** — the numbers are in the
+        "Here is the hard part. A single photo has no depth. So for every "
+        "point in the image the model guesses **64 different distances at "
+        "once**, from 2 m to 50 m, and says how likely each one is.\n\n"
+        "Those guesses get placed into 3D space and dropped onto a flat map. "
+        "Six cameras drop onto the *same* map, so they fuse for free.",
+
+        "Now it is a simple 2D problem. The model scans the map for object "
+        "centres and draws a box around each one.",
+    ]
+
+    for stage in range(len(STAGES)):
+        img = make_figure(0, boxes_all[0], all_ms[0], stage, score_thresh)
+        yield img, (f"### Step {stage+1} of 4 — {STAGES[stage][0]}\n\n"
+                    f"{step_text[stage]}")
+        time.sleep(1.6)
+
+    found = describe(boxes_all[0], score_thresh)
+    yield img, (f"### Moment 1 — what it found\n\n{found}\n\n"
+                f"Took **{all_ms[0]:.0f} ms**. Now watch the rest of the drive.")
+    time.sleep(1.8)
+
+    # ---------- Pagudhi 2: meedhi moments, live ----------
+    for i in range(1, N_MOMENTS):
+        img = make_figure(i, boxes_all[i], all_ms[i], len(STAGES) - 1,
+                          score_thresh)
+        found = describe(boxes_all[i], score_thresh)
+        yield img, (f"### Moment {i+1} of {N_MOMENTS}  ·  {all_ms[i]:.0f} ms\n\n"
+                    f"{found}")
+        time.sleep(1.1)
+
+    yield img, f"""### Done
+
+The car moved through **{N_MOMENTS} moments** of a real drive in Boston.
+Every one of them took about **{avg:.0f} ms** — roughly
+**{1000/avg:.0f} frames per second**, faster than the cameras produce them.
+
+Every box you saw came from **camera pixels alone**. No laser scanner, no
+pre-built map of the street.
+
+*This was plain PyTorch. Squeezed through TensorRT on a Tesla T4 the same
+model runs in **8.5 ms** — those numbers are in the
 [GitHub repo](https://github.com/dheepakkaran/multi-camera-bev).*
 """
 
@@ -233,15 +319,11 @@ def single(moment: int, score_thresh: float):
     b = _boxes(preds[0])
     shown = [x for x in b if x["score"] >= score_thresh]
     img = make_figure(i, b, ms[0], len(STAGES) - 1, score_thresh)
-    return img, f"""
-### This moment
+    return img, f"""### What it found
 
-| | |
-|---|---|
-| Time taken | **{ms[0]:.0f} ms** on an A100 GPU |
-| Objects found | {len(shown)} |
-| Cameras used | 6 |
-| LiDAR used | none |
+{describe(b, score_thresh)}
+
+Took **{ms[0]:.0f} ms** on an A100. Six cameras, no LiDAR.
 """
 
 
@@ -263,7 +345,7 @@ with gr.Blocks(title="What a self-driving car sees") as demo:
     with gr.Row():
         with gr.Column(scale=1):
             play_btn = gr.Button("▶  Play", variant="primary", size="lg")
-            gr.Markdown("*Runs 8 moments from a real drive. Takes ~20 seconds.*")
+            gr.Markdown("*Walks through a real drive, step by step. ~30 seconds.*")
 
             with gr.Accordion("Try one moment at a time", open=False):
                 moment = gr.Slider(
@@ -279,7 +361,7 @@ with gr.Blocks(title="What a self-driving car sees") as demo:
 
             stats_md = gr.Markdown()
         with gr.Column(scale=3):
-            out = gr.Image(label="", type="filepath", height=520)
+            out = gr.Image(label="", type="numpy", height=520)
 
     play_btn.click(play, inputs=[thresh], outputs=[out, stats_md])
     single_btn.click(single, inputs=[moment, thresh], outputs=[out, stats_md])
