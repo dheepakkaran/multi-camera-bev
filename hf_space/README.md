@@ -8,7 +8,7 @@ sdk_version: 5.50.0
 app_file: app.py
 pinned: false
 license: mit
-short_description: Camera-only 3D BEV detection served through NVIDIA Triton
+short_description: Camera-only 3D BEV object detection from 6 surround cameras
 ---
 
 # Multi-Camera BEV Perception

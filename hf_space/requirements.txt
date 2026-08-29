@@ -1,13 +1,7 @@
-# gradio inga list pannala - HF README-la irukkura sdk_version-ai vachi
-# thaana install pannum. Rendu edathula pin panna conflict aagum.
-# torch-um vendaam - base image-la already iruku.
+# torch, gradio, spaces - HF base image / sdk_version vazhiya varum.
+# Inga list pannina version conflict aagum.
 
-onnxruntime==1.20.1
+timm
 numpy
 matplotlib
 pyquaternion
-
-# Triton server, process ulla odum (Docker vendaam). Linux x86 mattum.
-# Start aagalaina app.py ONNX-ai neradiya use pannum - demo velai
-# seiyum, UI-la edhu use aagudhu nu honest-a kaattum.
-nvidia-pytriton==0.2.5
