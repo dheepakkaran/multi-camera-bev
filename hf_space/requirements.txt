@@ -1,0 +1,14 @@
+# CPU-only torch - default torch CUDA wheels-oda varum (~2 GB),
+# HF free Space-la adhu vendaam
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+
+gradio==4.44.1
+onnxruntime==1.20.2
+numpy<2
+matplotlib<3.10
+pyquaternion==0.9.9
+
+# Triton server (Docker illaama, process ulla odum). Linux x86 mattum.
+# Ithu start aagalaina app.py ONNX-ai neradiya use pannum.
+nvidia-pytriton==0.2.5
