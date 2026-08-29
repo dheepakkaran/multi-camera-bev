@@ -330,41 +330,73 @@ Took **{ms[0]:.0f} ms** on an A100. Six cameras, no LiDAR.
 DESC = """
 # What a self-driving car sees — using only cameras
 
-Six cameras around a car take a photo at the same instant. This model turns
-those six flat photos into a **top-down map** of the world around the car,
-with a box around every vehicle and person it finds.
+A car has six cameras pointing in every direction. Each one takes a flat
+photo, and none of them can tell how **far away** anything is.
 
-**No LiDAR, no laser scanners, no pre-built maps** — just cameras, which is
-the approach Tesla uses.
+This model takes those six photos and builds a **map of the world around
+the car, seen from above** — with a box around every vehicle and person it
+finds.
 
-Press **▶ Play** to watch it work.
+**No lasers. No radar. No pre-made map of the street.** Just the cameras —
+the same approach Tesla uses.
+"""
+
+HOWTO = """
+**Reading the map on the right:**
+
+&nbsp;&nbsp;⬜ the white rectangle in the middle is **the car itself**, arrow pointing forward
+&nbsp;&nbsp;⭕ the rings are **distance** — 10 m, 20 m, 30 m, 40 m, 50 m away
+&nbsp;&nbsp;▫️ dashed white outlines are **where objects really are**
+&nbsp;&nbsp;🟦 filled colour is **where the model thinks they are**
+
+The closer the colour sits to the dashes, the better it did.
 """
 
 with gr.Blocks(title="What a self-driving car sees") as demo:
     gr.Markdown(DESC)
+
     with gr.Row():
-        with gr.Column(scale=1):
-            play_btn = gr.Button("▶  Play", variant="primary", size="lg")
-            gr.Markdown("*Walks through a real drive, step by step. ~30 seconds.*")
-
-            with gr.Accordion("Try one moment at a time", open=False):
-                moment = gr.Slider(
-                    1, N_MOMENTS, value=3, step=1,
-                    label="Which moment?",
-                    info="8 snapshots taken a few seconds apart as the car drives")
-                thresh = gr.Slider(
-                    0.05, 0.5, value=0.2, step=0.05,
-                    label="How sure must the model be?",
-                    info="Low = show every guess, including wrong ones. "
-                         "High = only confident ones.")
-                single_btn = gr.Button("Run this moment")
-
-            stats_md = gr.Markdown()
+        with gr.Column(scale=2):
+            play_btn = gr.Button("▶   Play", variant="primary", size="lg")
+            gr.Markdown("*Walks through a real drive in Boston, "
+                        "step by step. Takes about 30 seconds.*")
         with gr.Column(scale=3):
-            out = gr.Image(label="", type="numpy", height=520)
+            gr.Markdown(HOWTO)
+
+    out = gr.Image(label="", type="numpy", height=560, show_label=False)
+
+    # Vilakkam padathukku NERADIYA KEEZHA, full width. Ithu thaan
+    # paakkuravanga padikkura vishayam - pakkathula othukka koodadhu.
+    stats_md = gr.Markdown(
+        "### Press ▶ Play\n\n"
+        "You will see the four steps the model takes, one at a time, then "
+        "the rest of the drive with a running commentary of what it found "
+        "and which camera spotted it."
+    )
+
+    with gr.Accordion("Or try one moment at a time", open=False):
+        with gr.Row():
+            moment = gr.Slider(
+                1, N_MOMENTS, value=3, step=1,
+                label="Which moment?",
+                info="8 snapshots taken a few seconds apart as the car drives")
+            thresh = gr.Slider(
+                0.05, 0.5, value=0.2, step=0.05,
+                label="How sure must the model be?",
+                info="Low = show every guess, including the wrong ones. "
+                     "High = only the confident ones.")
+        single_btn = gr.Button("Run this moment")
+
+    gr.Markdown(
+        "---\n"
+        "Built by [Dheepak Karan](https://github.com/dheepakkaran) · "
+        "[Full code, TensorRT benchmarks and Triton deployment]"
+        "(https://github.com/dheepakkaran/multi-camera-bev)"
+    )
 
     play_btn.click(play, inputs=[thresh], outputs=[out, stats_md])
     single_btn.click(single, inputs=[moment, thresh], outputs=[out, stats_md])
+
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
