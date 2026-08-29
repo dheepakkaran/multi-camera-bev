@@ -1,0 +1,42 @@
+# ============================================================
+# camera_backbone / config.pbtxt
+# ============================================================
+# 6 camera photos -> feature maps.
+#
+# MUKIYAMANA LINE: instance_group count: 6
+# Triton intha model-oda 6 COPY-ai GPU-la load pannum. 6 request
+# ore neram vandha, 6-um parallel-a odum (queue-la kaathirukka vendaam).
+# Backbone thaan pipeline-la konjam heavy, athanaala ithuku thaan
+# extra instances - decoder-ku 1 pothum.
+# ============================================================
+
+name: "camera_backbone"
+platform: "tensorrt_plan"
+
+# max_batch_size: 0 = "naan ezhuthura dims thaan FULL shape, Triton
+# thaana batch dimension serkka vendaam". Namma shapes already 6 camera
+# fix panniruku, athanaala 0.
+max_batch_size: 0
+
+input [
+  {
+    name: "images"
+    data_type: TYPE_FP32
+    dims: [ 6, 3, 224, 400 ]        # 6 camera, RGB, 224x400
+  }
+]
+
+output [
+  {
+    name: "features"
+    data_type: TYPE_FP32
+    dims: [ 6, 64, 14, 25 ]
+  }
+]
+
+instance_group [
+  {
+    count: 6                        # <- 6 parallel instances
+    kind: KIND_GPU
+  }
+]

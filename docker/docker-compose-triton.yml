@@ -1,0 +1,53 @@
+# ============================================================
+# docker-compose-triton.yml
+# ============================================================
+# NVIDIA Dynamo-Triton server-ai start pannurathu.
+# (Dynamo-Triton = pazhaya "Triton Inference Server", March 2025-la rename)
+#
+# Ethuku Docker? Triton-ai neradiya install panna romba dependency
+# (CUDA, cuDNN, TensorRT, backends...). Container-la ellaam ready.
+#
+# Epadi odurathu (NVIDIA GPU machine-la):
+#   docker compose -f docker/docker-compose-triton.yml up
+# ============================================================
+
+services:
+  triton:
+    # 25.01 = TensorRT 10.x, CUDA 12.x. Kaggle T4-ku sari.
+    image: nvcr.io/nvidia/tritonserver:25.01-py3
+    container_name: bev-triton
+
+    # GPU-ai container-ku kudukurathu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    ports:
+      - "8000:8000"   # HTTP  - inference requests
+      - "8001:8001"   # gRPC  - inference requests (HTTP vida fast)
+      - "8002:8002"   # metrics - Prometheus (GPU usage, latency stats)
+
+    volumes:
+      # Namma model repository-ai container ulla mount pannurom.
+      # :ro = read-only (container model-ai maatha koodadhu)
+      - ../triton_deploy/model_repository:/models:ro
+
+    # --strict-model-config=false : config.pbtxt-la miss aana details
+    #   Triton thaana model file-la irundhu kandupidikkum
+    # --log-verbose=1 : model load aagalaina yaen nu theriyum
+    command: >
+      tritonserver
+      --model-repository=/models
+      --strict-model-config=false
+      --log-verbose=1
+
+    # Server ready-a nu check pannurathu (Triton-oda own health endpoint)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
