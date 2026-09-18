@@ -306,8 +306,10 @@ Every one of them took about **{avg:.0f} ms** — roughly
 Every box you saw came from **camera pixels alone**. No laser scanner, no
 pre-built map of the street.
 
-*This was plain PyTorch. Squeezed through TensorRT on a Tesla T4 the same
-model runs in **8.5 ms** — those numbers are in the
+*This was plain PyTorch. Put through TensorRT on a Tesla T4 the same model
+runs in **24 ms**. There is also an INT8 build at 8.5 ms, but it only
+reproduces a third of these detections, so it is not the one shipped —
+all the numbers are in the
 [GitHub repo](https://github.com/dheepakkaran/multi-camera-bev).*
 """
 

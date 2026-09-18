@@ -24,6 +24,15 @@ echo "cloning Space..."
 git clone -q "$SPACE_URL" "$WORK"
 cd "$WORK" && git lfs install --local >/dev/null
 
+for f in assets/best.pth assets/samples.npz; do
+    if [ ! -f "$ROOT/hf_space/$f" ]; then
+        echo "hf_space/$f kaanom."
+        echo "  best.pth   -> training/train.py odichi runs/simplebev/ la irundhu copy pannu"
+        echo "  samples.npz -> export/sample_source.py paaru"
+        exit 1
+    fi
+done
+
 echo "copying app + assets..."
 cp "$ROOT/hf_space/app.py" "$ROOT/hf_space/requirements.txt" \
    "$ROOT/hf_space/README.md" .
