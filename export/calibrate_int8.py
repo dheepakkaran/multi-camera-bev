@@ -19,7 +19,7 @@
 # MUNADI FILE ODA CONNECTION:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Input : export/onnx/*.onnx (export_onnx.py kudukkurathu)
-# Output: export/engines/*.plan -> triton/model_repository/ ku pogum
+# Output: export/engines/*.plan -> export/backends.py + triton_deploy/ ku pogum
 #
 # INNER OPERATIONS:
 # ━━━━━━━━━━━━━━━━
