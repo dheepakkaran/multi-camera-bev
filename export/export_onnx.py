@@ -104,39 +104,6 @@ class DecoderONNX(nn.Module):
         return tuple(preds[k] for k in HEAD_NAMES)
 
 
-class BevHeadONNX(nn.Module):
-    """
-    Graph 3 (fallback): BEV map -> detection heads. LSS ILLAAMA.
-
-    Yaen ithu thevai? TensorRT-ku `scatter_add` (ONNX ScatterElements
-    with reduction) support illa - "ScatterReduction plugin not found"
-    nu parse fail aagum. Aana scatter thaan BEV pooling.
-
-    Solution: pipeline-ai pirikirom -
-        camera_backbone  -> TensorRT
-        lift + splat     -> PyTorch (scatter inga, GPU-la fast)
-        bev_head         -> TensorRT   <- ithu
-    Heavy compute (encoder + head, 200x200 la) TRT-la-ye irukku,
-    so speedup meedhi kedaikkum.
-    """
-
-    def __init__(self, model: SimpleBEV):
-        super().__init__()
-        self.bev_encoder = model.bev_encoder
-        self.head = model.head
-
-    def forward(self, bev: torch.Tensor) -> tuple:
-        """
-        Args:
-            bev: [1, 64, 200, 200]  LSS output
-
-        Returns:
-            tuple of 6 tensors (HEAD_NAMES order)
-        """
-        preds = self.head(self.bev_encoder(bev))
-        return tuple(preds[k] for k in HEAD_NAMES)
-
-
 def compute_geometry(model: SimpleBEV, K: torch.Tensor, E: torch.Tensor) -> torch.Tensor:
     """
     Frustum points-ai ego coordinates-a maathi thara (host-la, ORE thadava).
@@ -206,22 +173,6 @@ def main() -> None:
         dynamo=False,
     )
     print(f"exported {dec_path}")
-
-    # ============ Graph 3: bev_head (TRT fallback) ============
-    # bev_decoder-la scatter iruku, TensorRT adhai support pannala.
-    # So scatter illaadha version-um export pannurom.
-    with torch.no_grad():
-        bev = model.view_transformer(feats.unsqueeze(0), K, E)  # [1,64,200,200]
-
-    head = BevHeadONNX(model).eval()
-    head_path = os.path.join(args.out_dir, "bev_head.onnx")
-    torch.onnx.export(
-        head, (bev,), head_path,
-        input_names=["bev"], output_names=HEAD_NAMES,
-        opset_version=args.opset, do_constant_folding=True,
-        dynamo=False,
-    )
-    print(f"exported {head_path}")
 
     # ================= Verify: PyTorch vs ONNX =================
     # Export aanathu SARIYA velai seiyudha nu check pannurom.

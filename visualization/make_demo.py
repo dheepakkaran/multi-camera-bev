@@ -43,12 +43,13 @@ from visualization.bev_renderer import denormalize, draw_bev, CLASS_COLORS
 # Ithu Mac-la odum, aana kaatta vendiyathu T4 result. Mac-la
 # TensorRT-e illa, so anga alandhadhai inga kondu varom.
 BENCHMARK = [
-    ("PyTorch FP32",  36.40, 27.5, "1.00x", "baseline"),
-    ("ONNX Runtime",  33.80, 29.6, "1.08x", "100%"),
-    ("TensorRT FP32", 28.21, 35.5, "1.29x", "-"),
-    ("TensorRT FP16", 63.10, 15.8, "0.58x", "72%"),
-    ("TensorRT INT8",  9.35, 107.0, "3.89x", "53%"),
+    ("PyTorch FP32",  32.66,  30.6, "1.00x"),
+    ("ONNX Runtime",  30.20,  33.1, "1.08x"),
+    ("TensorRT FP32", 24.34,  41.1, "1.34x"),   # <- ithu thaan ship aachu
+    ("TensorRT FP16", 61.56,  16.2, "0.53x"),
+    ("TensorRT INT8",  8.52, 117.3, "3.83x"),
 ]
+SHIPPED = "TensorRT FP32"
 
 
 def draw_stats_panel(ax) -> None:
@@ -67,17 +68,18 @@ def draw_stats_panel(ax) -> None:
             transform=ax.transAxes)
 
     y -= 0.09
-    ax.text(0.02, y, f"{'Backend':<15}{'ms':>7}{'FPS':>7}{'speedup':>9}",
+    ax.text(0.02, y, f"{'Backend':<15}{'ms':>7}{'FPS':>7}{'vs base':>9}",
             color="#8a8a9a", fontsize=8.5, family="monospace",
             transform=ax.transAxes)
     y -= 0.035
     ax.plot([0.02, 0.98], [y, y], color="#2a2a3a", lw=0.8,
             transform=ax.transAxes, clip_on=False)
 
-    for name, ms, fps, speed, agree in BENCHMARK:
+    for name, ms, fps, speed in BENCHMARK:
         y -= 0.055
-        # INT8 thaan star - highlight pannurom
-        best = name == "TensorRT INT8"
+        # Vegam jaasti INT8-ku thaan. Aana ship aanadhu FP32 -
+        # highlight pannurathu ship aanadhai, vegathai illa.
+        best = name == SHIPPED
         color = "#00d4ff" if best else "#b0b0c0"
         ax.text(0.02, y, f"{name:<15}{ms:>7.1f}{fps:>7.1f}{speed:>9}",
                 color=color, fontsize=8.5, family="monospace",
@@ -86,12 +88,13 @@ def draw_stats_panel(ax) -> None:
 
     y -= 0.10
     for line, col in [
-        ("INT8: 3.89x faster, 17x smaller engine", "#00d4ff"),
-        ("(49.4 MB -> 2.9 MB)", "#6a6a7a"),
+        ("Shipped: TensorRT FP32", "#00d4ff"),
+        ("1.34x faster, nothing given up", "#8a8a9a"),
         ("", "#6a6a7a"),
-        ("Trade-off: 53% box agreement -", "#ff8c00"),
-        ("quantization hurts an undertrained", "#8a8a9a"),
-        ("model. FP32 engine ships instead.", "#8a8a9a"),
+        ("INT8 was 3.83x and 16x smaller,", "#ff8c00"),
+        ("but kept only 34% of the original", "#8a8a9a"),
+        ("detections. Fast and wrong is worse", "#8a8a9a"),
+        ("than slower and right.", "#8a8a9a"),
     ]:
         ax.text(0.02, y, line, color=col, fontsize=8,
                 transform=ax.transAxes)

@@ -377,27 +377,6 @@ def collect_calibration_data(data_root: str, n_samples: int, onnx_dir: str) -> t
     )
 
 
-def collect_bev_calibration(data_root: str, n_samples: int, onnx_dir: str) -> dict:
-    """bev_head-ku calibration data (BEV feature maps)."""
-    import torch
-    from export.sample_source import load_samples
-    from models.simplebev import SimpleBEV
-
-    imgs, K, E = load_samples(data_root=data_root)
-    n_samples = min(n_samples, len(imgs))
-    model = SimpleBEV(pretrained=False).eval()
-    model.load_state_dict(
-        torch.load("runs/simplebev/best.pth", map_location="cpu")["model"])
-
-    bevs = []
-    with torch.no_grad():
-        for i in range(n_samples):
-            f = model.backbone(imgs[i]).unsqueeze(0)
-            bevs.append(model.view_transformer(f, K.unsqueeze(0),
-                                               E.unsqueeze(0)).numpy()[0])
-    return {"bev": np.stack(bevs)}
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--onnx-dir", default="export/onnx")
@@ -449,33 +428,11 @@ def main() -> None:
                 )
 
     for name in ["camera_backbone", "bev_decoder"]:
-        try:
-            build_engine(
-                sources[name],
-                f"{args.engine_dir}/{name}_{args.precision}.plan",
-                args.precision, calibs[name],
-            )
-        except RuntimeError as e:
-            if name != "bev_decoder":
-                raise
-            # bev_decoder-la scatter_add iruku (BEV pooling). TensorRT
-            # antha op-ai support pannala. So SPLIT vazhi:
-            # scatter-ai PyTorch-la vachikitu, meedhi (encoder + head)
-            # mattum TRT-la potrom. Heavy compute anga thaan iruku.
-            print(f"\n  bev_decoder TRT-la aagala: {str(e)[:60]}")
-            print("  -> bev_head (encoder+head mattum) try pannurom")
-            head_onnx = f"{args.onnx_dir}/bev_head.onnx"
-            if not os.path.exists(head_onnx):
-                print(f"  {head_onnx} illa - export_onnx.py thirumba odu")
-                continue
-            if args.precision == "int8":
-                bev_data = collect_bev_calibration(
-                    args.data_root, 8, args.onnx_dir)
-                head_onnx = quantize_onnx_qdq(
-                    head_onnx, f"{args.onnx_dir}/bev_head_int8.onnx", bev_data)
-            build_engine(head_onnx,
-                         f"{args.engine_dir}/bev_head_{args.precision}.plan",
-                         args.precision, None)
+        build_engine(
+            sources[name],
+            f"{args.engine_dir}/{name}_{args.precision}.plan",
+            args.precision, calibs[name],
+        )
     print("ENGINES READY ->", args.engine_dir)
 
 

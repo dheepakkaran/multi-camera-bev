@@ -139,18 +139,11 @@ class TensorRTBackend(Backend):
     """
     TensorRT engine backend - NVIDIA GPU la mattum.
 
-    RENDU mode:
-      "fused" : camera_backbone -> bev_decoder   (LSS-um TRT-la)
-      "split" : camera_backbone -> [PyTorch LSS] -> bev_head
+    Rendu engine: camera_backbone -> bev_decoder.
 
-    Yaen split? TensorRT-ku `scatter_add` (ONNX ScatterElements with
-    reduction) support illa. Adhu thaan BEV pooling. So scatter-ai
-    mattum PyTorch-la vachikitu, meedhi ellathaiyum TRT-la potrom.
-    Heavy compute (backbone + 200x200 encoder/head) TRT-la-ye irukku.
-
-    Buffers-ku pycuda illaama torch CUDA tensors use pannurom - split
-    mode-la PyTorch-um sethu velai seiya vendiyirukku, so ore memory
-    world-la irundha copy thevai illa.
+    Buffers-ku pycuda illaama torch CUDA tensors use pannurom - ore
+    memory world-la irundha naduvula copy thevai illa, and code-um
+    simple.
     """
 
     def __init__(self, engine_dir: str, precision: str, onnx_dir: str,
@@ -170,36 +163,16 @@ class TensorRTBackend(Backend):
         self.bb_eng, self.bb_ctx, self.bb_buf = self._load(
             f"{engine_dir}/camera_backbone_{precision}.plan")
 
-        fused = f"{engine_dir}/bev_decoder_{precision}.plan"
-        split = f"{engine_dir}/bev_head_{precision}.plan"
-
-        if os.path.exists(fused):
-            self.mode = "fused"
-            self.dec_eng, self.dec_ctx, self.dec_buf = self._load(fused)
-            geom = np.load(f"{onnx_dir}/geometry.npy")
-            self.dec_buf["geometry"].copy_(
-                torch.from_numpy(geom).to(self.device))
-        elif os.path.exists(split):
-            self.mode = "split"
-            self.name += " (split: LSS in PyTorch)"
-            self.dec_eng, self.dec_ctx, self.dec_buf = self._load(split)
-
-            # LSS-ku PyTorch model thevai (scatter anga nadakkum)
-            from models.simplebev import SimpleBEV
-            m = SimpleBEV(pretrained=False).eval()
-            m.load_state_dict(torch.load(ckpt, map_location="cpu")["model"])
-            self.lss = m.view_transformer.to(self.device).eval()
-            self.K = K.unsqueeze(0).to(self.device)
-            self.E = E.unsqueeze(0).to(self.device)
-            # geometry ORE thadava - camera calibration maaraadhu
-            with torch.no_grad():
-                self.geom = self.lss.get_geometry(self.K, self.E)
-        else:
+        dec_path = f"{engine_dir}/bev_decoder_{precision}.plan"
+        if not os.path.exists(dec_path):
             raise FileNotFoundError(
-                f"bev_decoder-um bev_head-um illa ({precision}) - "
-                f"calibrate_int8.py odichiyaa?")
+                f"{dec_path} illa - calibrate_int8.py odichiyaa?")
+        self.dec_eng, self.dec_ctx, self.dec_buf = self._load(dec_path)
 
-        print(f"  TRT backend mode: {self.mode}")
+        geom = np.load(f"{onnx_dir}/geometry.npy")
+        self.dec_buf["geometry"].copy_(torch.from_numpy(geom).to(self.device))
+
+        print(f"  TensorRT {precision.upper()} engines loaded")
 
     def _load(self, path: str):
         """Engine load panni, ovvoru I/O tensor-kum torch buffer alloc."""
@@ -232,17 +205,8 @@ class TensorRTBackend(Backend):
         self._run_engine(self.bb_ctx, self.bb_buf)
         feats = self.bb_buf["features"]              # [6,64,14,25]
 
-        # --- Stage 2 ---
-        if self.mode == "fused":
-            self.dec_buf["features"].copy_(feats)
-        else:
-            # LSS PyTorch-la (scatter TRT-la aagaadhu)
-            with torch.no_grad():
-                vol = self.lss.lift(feats)                   # [6,C,D,H,W]
-                bev = self.lss.splat(vol.unsqueeze(0), self.geom)
-            self.dec_buf["bev"].copy_(bev)
-
-        # --- Stage 3: decoder / head (TRT) ---
+        # --- Stage 2: LSS + encoder + head (TRT) ---
+        self.dec_buf["features"].copy_(feats)
         self._run_engine(self.dec_ctx, self.dec_buf)
         return {n: self.dec_buf[n].cpu().numpy() for n in HEAD_NAMES}
 
@@ -278,8 +242,7 @@ def available_backends(onnx_dir: str = "export/onnx",
             pass
     for p in ["fp32", "fp16", "int8"]:
         has_bb = os.path.exists(f"{engine_dir}/camera_backbone_{p}.plan")
-        has_dec = (os.path.exists(f"{engine_dir}/bev_decoder_{p}.plan") or
-                   os.path.exists(f"{engine_dir}/bev_head_{p}.plan"))
+        has_dec = os.path.exists(f"{engine_dir}/bev_decoder_{p}.plan")
         if has_bb and has_dec:      # rendum irundha thaan odum
             out.append(f"trt_{p}")
     return out
