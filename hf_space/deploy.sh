@@ -14,13 +14,15 @@
 set -e
 
 SPACE_URL="git@hf.co:spaces/dheepakkaran/multi-camera-bev"
+
+# ROOT-ai MUNNADI kandupidikkanum - cd panna apram intha relative
+# path velai seiyaadhu
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK=$(mktemp -d)
 
 echo "cloning Space..."
 git clone -q "$SPACE_URL" "$WORK"
 cd "$WORK" && git lfs install --local >/dev/null
-
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "copying app + assets..."
 cp "$ROOT/hf_space/app.py" "$ROOT/hf_space/requirements.txt" \
